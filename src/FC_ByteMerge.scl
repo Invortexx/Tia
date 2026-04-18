@@ -1,0 +1,68 @@
+FUNCTION "FC_ByteMerge" : Void
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : ''
+FAMILY : 'DataConv'
+VERSION : '1.0'
+//
+// Zwei einzelne BYTE-Werte zu einem Zieldatentyp zusammenfuehren.
+// High-Byte belegt Bits 15..8, Low-Byte belegt Bits 7..0.
+//
+// Aufruf-Beispiel (aus OB/FB heraus):
+//   "FC_ByteMerge"(
+//       i_ByteHigh   := "MyDB".ByteArray[0],
+//       i_ByteLow    := "MyDB".ByteArray[1],
+//       i_TargetType := 2,        // INT
+//       o_ResultInt  => myResult,
+//       o_Valid      => mergeOK);
+
+   VAR_INPUT
+      i_ByteHigh   : Byte;   // Hoeherwertigtes Byte (Bits 15..8)
+      i_ByteLow    : Byte;   // Niederwertigtes Byte  (Bits  7..0)
+      i_TargetType : Int;    // Zieldatentyp: 1=WORD  2=INT  3=UINT
+   END_VAR
+
+   VAR_OUTPUT
+      o_ResultWord : Word;   // Ergebnis als WORD
+      o_ResultInt  : Int;    // Ergebnis als INT  (vorzeichenbehaftet)
+      o_ResultUInt : UInt;   // Ergebnis als UINT (vorzeichenlos)
+      o_Valid      : Bool;   // TRUE = Zieldatentyp gueltig, Wert verwendbar
+   END_VAR
+
+   VAR_CONSTANT
+      TARGETTYPE_WORD : Int := 1;
+      TARGETTYPE_INT  : Int := 2;
+      TARGETTYPE_UINT : Int := 3;
+   END_VAR
+
+   VAR_TEMP
+      tmpWord : Word;
+   END_VAR
+
+BEGIN
+   // Initialisierung
+   tmpWord      := WORD#16#0000;
+   o_ResultWord := WORD#16#0000;
+   o_ResultInt  := 0;
+   o_ResultUInt := 0;
+   o_Valid      := FALSE;
+
+   CASE i_TargetType OF
+
+      TARGETTYPE_WORD,
+      TARGETTYPE_INT,
+      TARGETTYPE_UINT:
+         // High-Byte in Bits 15..8, Low-Byte in Bits 7..0
+         tmpWord.%B1 := i_ByteHigh;
+         tmpWord.%B0 := i_ByteLow;
+
+         o_ResultWord := tmpWord;
+         o_ResultInt  := WORD_TO_INT(tmpWord);
+         o_ResultUInt := WORD_TO_UINT(tmpWord);
+         o_Valid      := TRUE;
+
+   ELSE
+      // Unbekannter Zieldatentyp -> alle Ausgaenge auf 0
+      ;
+   END_CASE;
+
+END_FUNCTION

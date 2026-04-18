@@ -1,0 +1,86 @@
+FUNCTION "FC_ArrayByteMerge" : Void
+{ S7_Optimized_Access := 'TRUE' }
+AUTHOR : ''
+FAMILY : 'DataConv'
+VERSION : '1.0'
+//
+// Liest zwei aufeinanderfolgende BYTE aus einem DB-Array und fuehrt sie
+// zum gewuenschten Zieldatentyp zusammen.
+//   i_StartIdx   -> High-Byte (Bits 15..8)
+//   i_StartIdx+1 -> Low-Byte  (Bits  7..0)
+//
+// Der Baustein akzeptiert ARRAY[*] OF BYTE jeder Groesse und jedes
+// Startindex (keine Festlegung auf [0..n]).
+// Liegt i_StartIdx oder i_StartIdx+1 ausserhalb des Arrays, bleiben
+// alle Ausgaenge 0 und o_Valid wird FALSE.
+//
+// Aufruf-Beispiel (aus OB/FB heraus):
+//   "FC_ArrayByteMerge"(
+//       i_Array      := "MyDB".RawData,   // ARRAY[0..99] OF BYTE
+//       i_StartIdx   := DINT#4,
+//       i_TargetType := 2,                // INT
+//       o_ResultInt  => myIntValue,
+//       o_Valid      => ok);
+
+   VAR_INPUT
+      i_Array      : ARRAY[*] OF Byte;  // DB-Array mit BYTE-Elementen (beliebige Groesse)
+      i_StartIdx   : DInt;               // Index des High-Bytes; Low-Byte = Index + 1
+      i_TargetType : Int;                // Zieldatentyp: 1=WORD  2=INT  3=UINT
+   END_VAR
+
+   VAR_OUTPUT
+      o_ResultWord : Word;   // Ergebnis als WORD
+      o_ResultInt  : Int;    // Ergebnis als INT  (vorzeichenbehaftet)
+      o_ResultUInt : UInt;   // Ergebnis als UINT (vorzeichenlos)
+      o_Valid      : Bool;   // TRUE = Index gueltig und Zieldatentyp bekannt
+   END_VAR
+
+   VAR_CONSTANT
+      TARGETTYPE_WORD : Int := 1;
+      TARGETTYPE_INT  : Int := 2;
+      TARGETTYPE_UINT : Int := 3;
+   END_VAR
+
+   VAR_TEMP
+      tmpWord  : Word;
+      arrLow   : DInt;   // untere Arraygrenze
+      arrHigh  : DInt;   // obere  Arraygrenze
+   END_VAR
+
+BEGIN
+   // Initialisierung
+   tmpWord      := WORD#16#0000;
+   o_ResultWord := WORD#16#0000;
+   o_ResultInt  := 0;
+   o_ResultUInt := 0;
+   o_Valid      := FALSE;
+
+   // Arraygrenzen ermitteln (unabhaengig von DB-Definition)
+   arrLow  := LOWER_BOUND(ARR := i_Array, DIM := 1);
+   arrHigh := UPPER_BOUND(ARR := i_Array, DIM := 1);
+
+   // Indexgrenzen und Zieldatentyp pruefen
+   IF (i_StartIdx >= arrLow) AND ((i_StartIdx + 1) <= arrHigh) THEN
+
+      CASE i_TargetType OF
+
+         TARGETTYPE_WORD,
+         TARGETTYPE_INT,
+         TARGETTYPE_UINT:
+            // Bytes einlesen und zusammenfuehren
+            tmpWord.%B1 := i_Array[i_StartIdx];       // High-Byte
+            tmpWord.%B0 := i_Array[i_StartIdx + 1];   // Low-Byte
+
+            o_ResultWord := tmpWord;
+            o_ResultInt  := WORD_TO_INT(tmpWord);
+            o_ResultUInt := WORD_TO_UINT(tmpWord);
+            o_Valid      := TRUE;
+
+      ELSE
+         // Unbekannter Zieldatentyp -> Ausgaenge bleiben 0
+         ;
+      END_CASE;
+
+   END_IF;
+
+END_FUNCTION
