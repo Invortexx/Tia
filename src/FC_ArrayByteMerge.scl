@@ -2,91 +2,64 @@ FUNCTION "FC_ArrayByteMerge" : Void
 { S7_Optimized_Access := 'TRUE' }
 AUTHOR : ''
 FAMILY : 'DataConv'
-VERSION : '1.1'
+VERSION : '1.2'
 //
 // Liest zwei frei waehlbare BYTE-Stellen aus einem DB-Array und fuehrt
 // sie zum gewuenschten Zieldatentyp zusammen.
-//   i_IdxHigh -> beliebiger Index fuer das High-Byte (Bits 15..8)
-//   i_IdxLow  -> beliebiger Index fuer das Low-Byte  (Bits  7..0)
 //
-// Beide Indizes koennen unabhaengig voneinander gesetzt werden,
-// z.B. High=DB[1], Low=DB[6].
-//
-// Liegt ein Index ausserhalb des Arrays, bleiben alle Ausgaenge 0
-// und o_Valid wird FALSE.
+// HINWEIS: i_Array muss VAR_IN_OUT sein, da ARRAY[*] in TIA Portal
+//          nur als IN_OUT-Parameter funktioniert (nicht als INPUT).
+//          Das Array wird nicht veraendert, nur gelesen.
 //
 // Aufruf-Beispiel (aus OB/FB heraus):
 //   "FC_ArrayByteMerge"(
-//       i_Array      := "MyDB".RawData,   // ARRAY[0..99] OF BYTE
-//       i_IdxHigh    := DINT#1,           // DB[1]  -> Bits 15..8
-//       i_IdxLow     := DINT#6,           // DB[6]  -> Bits  7..0
-//       i_TargetType := 2,                // INT
+//       i_Array   := "MyDB".RawData,   // ARRAY[0..20] OF BYTE
+//       i_IdxHigh := DINT#1,           // DB[1]  -> Bits 15..8
+//       i_IdxLow  := DINT#6,           // DB[6]  -> Bits  7..0
 //       o_ResultInt  => myIntValue,
 //       o_Valid      => ok);
 
+   VAR_IN_OUT
+      i_Array   : ARRAY[*] OF Byte;  // DB-Array (wird nur gelesen, nicht veraendert)
+   END_VAR
+
    VAR_INPUT
-      i_Array      : ARRAY[*] OF Byte;  // DB-Array mit BYTE-Elementen (beliebige Groesse)
-      i_IdxHigh    : DInt;               // Index des High-Bytes (Bits 15..8)
-      i_IdxLow     : DInt;               // Index des Low-Bytes  (Bits  7..0)
-      i_TargetType : Int;                // Zieldatentyp: 1=WORD  2=INT  3=UINT
+      i_IdxHigh : DInt;   // Index des High-Bytes (Bits 15..8)
+      i_IdxLow  : DInt;   // Index des Low-Bytes  (Bits  7..0)
    END_VAR
 
    VAR_OUTPUT
-      o_ResultWord : Word;   // Ergebnis als WORD
-      o_ResultInt  : Int;    // Ergebnis als INT  (vorzeichenbehaftet)
-      o_ResultUInt : UInt;   // Ergebnis als UINT (vorzeichenlos)
-      o_Valid      : Bool;   // TRUE = Indizes gueltig und Zieldatentyp bekannt
-   END_VAR
-
-   VAR_CONSTANT
-      TARGETTYPE_WORD : Int := 1;
-      TARGETTYPE_INT  : Int := 2;
-      TARGETTYPE_UINT : Int := 3;
+      o_ResultWord : Word;
+      o_ResultInt  : Int;
+      o_ResultUInt : UInt;
+      o_Valid      : Bool;
    END_VAR
 
    VAR_TEMP
-      tmpWord  : Word;
-      arrLow   : DInt;   // untere Arraygrenze
-      arrHigh  : DInt;   // obere  Arraygrenze
-      idxOk    : Bool;   // beide Indizes innerhalb der Arraygrenzen
+      tmpWord : Word;
+      arrLow  : DInt;
+      arrHigh : DInt;
    END_VAR
 
 BEGIN
-   // Initialisierung
-   tmpWord      := WORD#16#0000;
    o_ResultWord := WORD#16#0000;
    o_ResultInt  := 0;
    o_ResultUInt := 0;
    o_Valid      := FALSE;
 
-   // Arraygrenzen ermitteln (unabhaengig von DB-Definition)
    arrLow  := LOWER_BOUND(ARR := i_Array, DIM := 1);
    arrHigh := UPPER_BOUND(ARR := i_Array, DIM := 1);
 
-   // Beide Indizes unabhaengig auf Gueltigkeit pruefen
-   idxOk := (i_IdxHigh >= arrLow) AND (i_IdxHigh <= arrHigh)
-        AND (i_IdxLow  >= arrLow) AND (i_IdxLow  <= arrHigh);
+   IF (i_IdxHigh >= arrLow) AND (i_IdxHigh <= arrHigh)
+  AND (i_IdxLow  >= arrLow) AND (i_IdxLow  <= arrHigh) THEN
 
-   IF idxOk THEN
+      tmpWord.%B1 := i_Array[i_IdxHigh];
+      tmpWord.%B0 := i_Array[i_IdxLow];
 
-      CASE i_TargetType OF
-
-         TARGETTYPE_WORD,
-         TARGETTYPE_INT,
-         TARGETTYPE_UINT:
-            // Bytes an den gewaehlten Stellen lesen und zusammenfuehren
-            tmpWord.%B1 := i_Array[i_IdxHigh];   // High-Byte -> Bits 15..8
-            tmpWord.%B0 := i_Array[i_IdxLow];    // Low-Byte  -> Bits  7..0
-
-            o_ResultWord := tmpWord;
-            o_ResultInt  := WORD_TO_INT(tmpWord);
-            o_ResultUInt := WORD_TO_UINT(tmpWord);
-            o_Valid      := TRUE;
-
-      ELSE
-         // Unbekannter Zieldatentyp -> Ausgaenge bleiben 0
-         ;
-      END_CASE;
+      o_ResultWord := tmpWord;
+      o_ResultInt  := WORD_TO_INT(tmpWord);
+      o_ResultUInt := WORD_TO_UINT(tmpWord);
+      o_Valid      := TRUE;
 
    END_IF;
 
